@@ -52,9 +52,26 @@ export default function ProfileScreen() {
 
   if (!user) return null;
 
-  const animeCount = bookmarks.filter(b => b.Status === 'watching').length;
-  const mangaCount = bookmarks.filter(b => b.Status === 'reading').length;
-  const completedCount = bookmarks.filter(b => b.Status === 'completed').length;
+  // Contar bookmarks por status
+  const watchingCount = bookmarks.filter(b => {
+    const bookmark = b as any;
+    return bookmark.status === 'watching';
+  }).length;
+  
+  const readingCount = bookmarks.filter(b => {
+    const bookmark = b as any;
+    return bookmark.status === 'reading';
+  }).length;
+  
+  const completedCount = bookmarks.filter(b => {
+    const bookmark = b as any;
+    return bookmark.status === 'completed';
+  }).length;
+  
+  const droppedCount = bookmarks.filter(b => {
+    const bookmark = b as any;
+    return bookmark.status === 'dropped';
+  }).length;
 
   return (
     <ScrollView style={styles.container}>
@@ -81,16 +98,20 @@ export default function ProfileScreen() {
         ) : (
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{animeCount}</Text>
+              <Text style={styles.statValue}>{watchingCount}</Text>
               <Text style={styles.statLabel}>Assistindo</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{mangaCount}</Text>
+              <Text style={styles.statValue}>{readingCount}</Text>
               <Text style={styles.statLabel}>Lendo</Text>
             </View>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{completedCount}</Text>
               <Text style={styles.statLabel}>Completos</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{droppedCount}</Text>
+              <Text style={styles.statLabel}>Dropados</Text>
             </View>
           </View>
         )}

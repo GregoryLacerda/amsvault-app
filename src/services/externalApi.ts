@@ -75,8 +75,8 @@ async function searchManga(query: string): Promise<ExternalStory[]> {
         medium: manga.images?.jpg?.image_url,
         large: manga.images?.jpg?.large_image_url,
       },
-      total_chapter: manga.chapters || 0,
-      total_volume: manga.volumes || 0,
+      total_chapter: manga.chapters !== null && manga.chapters !== undefined ? manga.chapters : 0,
+      total_volume: manga.volumes !== null && manga.volumes !== undefined ? manga.volumes : 0,
     }));
   } catch (error) {
     console.error('Erro ao buscar mangás:', error);

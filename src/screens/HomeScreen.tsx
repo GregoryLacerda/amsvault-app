@@ -83,7 +83,30 @@ export default function HomeScreen() {
         return acc;
       }, []);
       
-      setStories(uniqueResults);
+      // Busca bookmarks do usuário para filtrar resultados já favoritados
+      let filteredResults = uniqueResults;
+      if (user) {
+        try {
+          const userBookmarks = await LocalApiService.getBookmarksByUser(user.id);
+          const bookmarkedStoryNames = userBookmarks.map((b: any) => {
+            const story = b.story;
+            const name = (story?.name || story?.Name || '').toLowerCase();
+            return name;
+          }).filter(name => name !== '');
+          
+          // Remove stories que já estão nos favoritos
+          filteredResults = uniqueResults.filter((story: any) => {
+            const storyName = (story.name || story.Name || '').toLowerCase();
+            return !bookmarkedStoryNames.includes(storyName);
+          });
+        } catch (error) {
+          console.error('Erro ao buscar bookmarks do usuário:', error);
+          // Se falhar ao buscar bookmarks, mantém todos os resultados
+          filteredResults = uniqueResults;
+        }
+      }
+      
+      setStories(filteredResults);
     } catch (error) {
       console.error('Erro ao buscar stories:', error);
       // Em caso de erro, tenta buscar apenas no banco local
@@ -155,6 +178,12 @@ export default function HomeScreen() {
       console.log('[handleSaveBookmark] Resultado:', result);
       
       showToast(`✓ ${storyName} adicionado aos favoritos!`, 'success');
+      
+      // Remove o item da lista de resultados
+      setStories(prevStories => prevStories.filter((s: any) => {
+        const sName = (s.name || s.Name || '').toLowerCase();
+        return sName !== storyName.toLowerCase();
+      }));
     } catch (error: any) {
       console.error('[handleSaveBookmark] Erro:', error);
       showToast(error.message || 'Erro ao salvar favorito', 'error');

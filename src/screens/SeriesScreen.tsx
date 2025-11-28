@@ -53,12 +53,12 @@ export default function SeriesScreen() {
       const userBookmarks = await LocalApiService.getBookmarksByUser(user.id);
       setBookmarks(userBookmarks);
 
-      // Filtra bookmarks que são séries (não anime nem manga)
+      // Filtra bookmarks que são séries (não anime, manga ou manhwa)
       const seriesBookmarks = userBookmarks.filter((bookmark: any) => {
         const story = bookmark.story;
         if (!story) return false;
         const source = (story.source || story.Source || '').toLowerCase();
-        return source !== 'anime' && source !== 'manga';
+        return source !== 'anime' && source !== 'manga' && source !== 'manhwa';
       });
       
       setBookmarksWithStories(seriesBookmarks);
@@ -177,13 +177,13 @@ export default function SeriesScreen() {
               value={currentEpisode.toString()}
               onChangeText={(text) => {
                 const num = parseInt(text) || 0;
-                if (num >= 0 && num <= totalEpisode) {
+                if (num >= 0) {
                   setEditingBookmark({ id: bookmark.id, episode: num, status: bookmarkStatus });
                 }
               }}
               keyboardType="numeric"
             />
-            <Text style={styles.progressText}>de {totalEpisode}</Text>
+            <Text style={styles.progressText}>de {totalEpisode || '?'}</Text>
           </View>
 
           <View style={styles.statusContainer}>
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
     borderColor: '#2563eb',
   },
   statusButtonText: {
-    fontSize: 11,
+    fontSize: 9,
     color: '#666',
     fontWeight: '600',
   },

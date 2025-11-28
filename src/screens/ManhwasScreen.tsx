@@ -177,13 +177,13 @@ export default function ManhwasScreen() {
               value={currentChapter.toString()}
               onChangeText={(text) => {
                 const num = parseInt(text) || 0;
-                if (num >= 0 && num <= totalChapter) {
+                if (num >= 0) {
                   setEditingBookmark({ id: bookmark.id, chapter: num, status: bookmarkStatus });
                 }
               }}
               keyboardType="numeric"
             />
-            <Text style={styles.progressText}>de {totalChapter}</Text>
+            <Text style={styles.progressText}>de {totalChapter || '?'}</Text>
           </View>
 
           <View style={styles.statusContainer}>
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
     borderColor: '#2563eb',
   },
   statusButtonText: {
-    fontSize: 11,
+    fontSize: 9,
     color: '#666',
     fontWeight: '600',
   },

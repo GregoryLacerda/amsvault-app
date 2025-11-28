@@ -186,13 +186,13 @@ export default function AnimesScreen() {
               value={currentEpisode.toString()}
               onChangeText={(text) => {
                 const num = parseInt(text) || 0;
-                if (num >= 0 && num <= totalEpisode) {
+                if (num >= 0) {
                   setEditingBookmark({ id: bookmark.id, episode: num, status: bookmarkStatus });
                 }
               }}
               keyboardType="numeric"
             />
-            <Text style={styles.progressText}>de {totalEpisode}</Text>
+            <Text style={styles.progressText}>de {totalEpisode || '?'}</Text>
           </View>
 
           <View style={styles.statusContainer}>
@@ -523,7 +523,7 @@ const styles = StyleSheet.create({
     borderColor: '#2563eb',
   },
   statusButtonText: {
-    fontSize: 11,
+    fontSize: 9,
     color: '#666',
     fontWeight: '600',
   },
