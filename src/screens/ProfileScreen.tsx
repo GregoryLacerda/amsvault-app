@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
-import ApiService from '../services/api';
+import LocalApiService from '../services/localApi';
 import { Bookmark } from '../types';
 import Toast from '../components/Toast';
 
@@ -27,7 +27,7 @@ export default function ProfileScreen() {
     
     setLoading(true);
     try {
-      const data = await ApiService.getBookmarksByUser(user.id);
+      const data = await LocalApiService.getBookmarksByUser(user.id);
       setBookmarks(data);
     } catch (error) {
       showToast('Não foi possível carregar seus favoritos');

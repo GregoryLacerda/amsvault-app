@@ -8,19 +8,26 @@ import {
   Pressable,
   TextInput,
   ActivityIndicator,
+  TouchableOpacity,
+  Modal,
+  ScrollView,
 } from 'react-native';
-import { Story } from '../types';
-import ApiService from '../services/api';
+import { Story, Bookmark } from '../types';
+import LocalApiService from '../services/localApi';
 import { useAuth } from '../contexts/AuthContext';
 import Toast from '../components/Toast';
 
 type ToastType = 'success' | 'error' | 'info';
 
 export default function MangasScreen() {
-  const [stories, setStories] = useState<Story[]>([]);
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [bookmarksWithStories, setBookmarksWithStories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [editingBookmark, setEditingBookmark] = useState<{ id: string; chapter: number; status: string } | null>(null);
+  const [descriptionModal, setDescriptionModal] = useState<{ visible: boolean; title: string; description: string }>({ visible: false, title: '', description: '' });
+  const [sortBy, setSortBy] = useState<'all' | 'reading' | 'completed' | 'dropped'>('all');
   const { user } = useAuth();
 
   const showToast = (message: string, type: ToastType = 'error') => {
@@ -29,72 +36,194 @@ export default function MangasScreen() {
 
   useEffect(() => {
     loadMangas();
-  }, []);
+  }, [user]);
 
-  const loadMangas = async (searchTerm?: string) => {
+  useEffect(() => {
+    handleSearch();
+  }, [sortBy]);
+
+  const loadMangas = async () => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const allStories = await ApiService.getStories(searchTerm);
-      const mangas = ApiService.filterStoriesBySource(allStories, 'manga');
-      setStories(mangas);
+      const userBookmarks = await LocalApiService.getBookmarksByUser(user.id);
+      setBookmarks(userBookmarks);
+
+      // Filtra bookmarks que são mangás
+      const mangaBookmarks = userBookmarks.filter((bookmark: any) => {
+        const story = bookmark.story;
+        if (!story) return false;
+        const source = (story.source || story.Source || '').toLowerCase();
+        return source === 'manga';
+      });
+      
+      setBookmarksWithStories(mangaBookmarks);
     } catch (error) {
       showToast('Não foi possível carregar os mangás');
-      setStories([]);
+      setBookmarksWithStories([]);
     } finally {
       setLoading(false);
     }
   };
 
   const handleSearch = () => {
-    loadMangas(search);
+    if (!search.trim() && sortBy === 'all') {
+      loadMangas();
+      return;
+    }
+    
+    let filtered = bookmarks.filter((bookmark: any) => {
+      const story = bookmark.story;
+      if (!story) return false;
+      const source = (story.source || story.Source || '').toLowerCase();
+      return source === 'manga';
+    });
+
+    if (sortBy !== 'all') {
+      filtered = filtered.filter((bookmark: any) => bookmark.status === sortBy);
+    }
+
+    if (search.trim()) {
+      filtered = filtered.filter(bookmark => {
+        const story = (bookmark as any).story;
+        const name = story?.name || story?.Name || '';
+        return name.toLowerCase().includes(search.toLowerCase());
+      });
+    }
+    
+    setBookmarksWithStories(filtered);
   };
 
-  const handleAddBookmark = async (story: Story) => {
-    if (!user) return;
-    
+  const handleConfirmUpdate = async () => {
+    if (!editingBookmark || !user) return;
+
     try {
-      await ApiService.createBookmark({
+      const bookmark = bookmarksWithStories.find((b: any) => b.id === editingBookmark.id);
+      if (!bookmark) return;
+
+      await LocalApiService.updateBookmark({
+        id: editingBookmark.id,
         user_id: user.id,
-        story_id: story.ID,
-        status: 'reading',
-        current_chapter: 0,
-        current_volume: 0,
+        story_id: (bookmark as any).story.id,
+        status: editingBookmark.status,
+        current_chapter: editingBookmark.chapter,
+        current_volume: (bookmark as any).current_volume || 0,
       });
-      showToast(`${story.Name} adicionado!`, 'success');
+
+      // Atualiza localmente
+      const updated = bookmarksWithStories.map((b: any) => {
+        if (b.id === editingBookmark.id) {
+          return { ...b, current_chapter: editingBookmark.chapter, status: editingBookmark.status };
+        }
+        return b;
+      });
+      setBookmarksWithStories(updated);
+      setEditingBookmark(null);
+      showToast('Atualizado com sucesso!', 'success');
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Erro ao adicionar');
+      showToast('Erro ao atualizar');
     }
   };
 
-  const renderManga = ({ item }: { item: Story }) => (
-    <Pressable style={styles.card} onPress={() => handleAddBookmark(item)}>
-      <Image 
-        source={{ uri: item.MainPicture?.Large || item.MainPicture?.Medium || 'https://via.placeholder.com/100x140' }} 
-        style={styles.image} 
-      />
-      <View style={styles.info}>
-        <Text style={styles.title} numberOfLines={2}>
-          {item.Name}
-        </Text>
-        <Text style={styles.description} numberOfLines={3}>
-          {item.Description || 'Sem descrição'}
-        </Text>
-        <View style={styles.meta}>
-          <Text style={styles.episodes}>
-            {item.TotalVolume} vols • {item.TotalChapter} caps
-          </Text>
-          <Text
-            style={[
-              styles.status,
-              item.Status === 'ongoing' ? styles.statusOngoing : styles.statusCompleted,
-            ]}
-          >
-            {item.Status === 'ongoing' ? 'Em andamento' : 'Completo'}
-          </Text>
+  const renderManga = ({ item }: { item: any }) => {
+    const bookmark = item;
+    const story = bookmark.story;
+    if (!story) return null;
+
+    const name = story.name || story.Name || 'Sem nome';
+    const description = story.description || story.Description || 'Sem descrição';
+    const mainPicture = story.main_picture || story.MainPicture;
+    const imageUrl = mainPicture?.large || mainPicture?.Large || mainPicture?.medium || mainPicture?.Medium;
+    const totalChapter = story.total_chapter || story.TotalChapter || 0;
+    const totalVolume = story.total_volume || story.TotalVolume || 0;
+    
+    const isEditing = editingBookmark?.id === bookmark.id;
+    const currentChapter = isEditing ? (editingBookmark?.chapter ?? 0) : (bookmark.current_chapter || 0);
+    const bookmarkStatus = isEditing ? (editingBookmark?.status ?? 'reading') : (bookmark.status || 'reading');
+
+    const statusOptions = [
+      { value: 'reading', label: 'Lendo' },
+      { value: 'completed', label: 'Completo' },
+      { value: 'dropped', label: 'Dropado' },
+    ];
+
+    return (
+      <Pressable style={styles.card}>
+        <Image 
+          source={{ uri: imageUrl || 'https://via.placeholder.com/100x140' }} 
+          style={styles.image} 
+        />
+        <View style={styles.info}>
+          <View style={styles.titleContainer}>
+            <Text style={styles.title} numberOfLines={2}>
+              {name}
+            </Text>
+            <TouchableOpacity 
+              style={styles.infoButton}
+              onPress={() => setDescriptionModal({ visible: true, title: name, description })}
+            >
+              <Text style={styles.infoButtonText}>i</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.progressContainer}>
+            <Text style={styles.progressLabel}>Capítulo:</Text>
+            <TextInput
+              style={styles.chapterInput}
+              value={currentChapter.toString()}
+              onChangeText={(text) => {
+                const num = parseInt(text) || 0;
+                if (num >= 0 && num <= totalChapter) {
+                  setEditingBookmark({ id: bookmark.id, chapter: num, status: bookmarkStatus });
+                }
+              }}
+              keyboardType="numeric"
+            />
+            <Text style={styles.progressText}>de {totalChapter}</Text>
+          </View>
+
+          <View style={styles.statusContainer}>
+            <Text style={styles.statusLabel}>Status:</Text>
+            <View style={styles.statusButtons}>
+              {statusOptions.map(option => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.statusButton,
+                    bookmarkStatus === option.value && styles.statusButtonActive
+                  ]}
+                  onPress={() => {
+                    setEditingBookmark({ 
+                      id: bookmark.id, 
+                      chapter: currentChapter, 
+                      status: option.value 
+                    });
+                  }}
+                >
+                  <Text style={[
+                    styles.statusButtonText,
+                    bookmarkStatus === option.value && styles.statusButtonTextActive
+                  ]}>
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {isEditing && (
+            <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmUpdate}>
+              <Text style={styles.confirmButtonText}>Confirmar</Text>
+            </TouchableOpacity>
+          )}
         </View>
-      </View>
-    </Pressable>
-  );
+      </Pressable>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -116,21 +245,65 @@ export default function MangasScreen() {
         />
       </View>
 
+      <View style={styles.sortWrapper}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortContainer}>
+        <TouchableOpacity style={[styles.sortButton, sortBy === 'all' && styles.sortButtonActive]} onPress={() => setSortBy('all')}>
+          <Text style={[styles.sortButtonText, sortBy === 'all' && styles.sortButtonTextActive]}>Todos</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.sortButton, sortBy === 'reading' && styles.sortButtonActive]} onPress={() => setSortBy('reading')}>
+          <Text style={[styles.sortButtonText, sortBy === 'reading' && styles.sortButtonTextActive]}>Lendo</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.sortButton, sortBy === 'completed' && styles.sortButtonActive]} onPress={() => setSortBy('completed')}>
+          <Text style={[styles.sortButtonText, sortBy === 'completed' && styles.sortButtonTextActive]}>Completo</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.sortButton, sortBy === 'dropped' && styles.sortButtonActive]} onPress={() => setSortBy('dropped')}>
+          <Text style={[styles.sortButtonText, sortBy === 'dropped' && styles.sortButtonTextActive]}>Dropado</Text>
+        </TouchableOpacity>
+        </ScrollView>
+      </View>
+
       {loading ? (
         <ActivityIndicator size="large" color="#2563eb" style={styles.loader} />
-      ) : stories.length === 0 ? (
+      ) : bookmarksWithStories.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>Nenhum mangá encontrado</Text>
           <Text style={styles.emptyHint}>Tente buscar por nome</Text>
         </View>
       ) : (
         <FlatList
-          data={stories}
+          data={bookmarksWithStories}
           renderItem={renderManga}
-          keyExtractor={(item) => item.ID.toString()}
+          keyExtractor={(item, index) => {
+            return item.id || `manga-${index}`;
+          }}
           contentContainerStyle={styles.list}
         />
       )}
+
+      <Modal
+        visible={descriptionModal.visible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDescriptionModal({ visible: false, title: '', description: '' })}
+      >
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setDescriptionModal({ visible: false, title: '', description: '' })}
+        >
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>{descriptionModal.title}</Text>
+            <ScrollView style={styles.modalScroll}>
+              <Text style={styles.modalDescription}>{descriptionModal.description}</Text>
+            </ScrollView>
+            <TouchableOpacity 
+              style={styles.modalCloseButton}
+              onPress={() => setDescriptionModal({ visible: false, title: '', description: '' })}
+            >
+              <Text style={styles.modalCloseButtonText}>Fechar</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -154,6 +327,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 16,
   },
+  sortWrapper: { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
+  sortContainer: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
+  sortButton: { paddingVertical: 6, paddingHorizontal: 14, borderWidth: 1, borderColor: '#ddd', borderRadius: 6, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', minWidth: 75, height: 32 },
+  sortButtonActive: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
+  sortButtonText: { fontSize: 12, color: '#666', fontWeight: '600' },
+  sortButtonTextActive: { color: '#fff' },
   loader: {
     flex: 1,
     justifyContent: 'center',
@@ -185,11 +364,151 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 4,
+    flex: 1,
+  },
+  titleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  infoButton: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#2563eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  infoButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#333',
+  },
+  modalScroll: {
+    maxHeight: 400,
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  modalCloseButton: {
+    marginTop: 16,
+    backgroundColor: '#2563eb',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 6,
+    alignSelf: 'center',
+  },
+  modalCloseButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   description: {
     fontSize: 14,
     color: '#666',
     marginBottom: 8,
+  },
+  progressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+    marginRight: 8,
+  },
+  progressText: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 4,
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statusLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#333',
+    marginRight: 8,
+  },
+  statusButtons: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  statusButton: {
+    flex: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 6,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+  },
+  statusButtonActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+  },
+  statusButtonText: {
+    fontSize: 11,
+    color: '#666',
+    fontWeight: '600',
+  },
+  statusButtonTextActive: {
+    color: '#fff',
+  },
+  chapterInput: {
+    width: 50,
+    height: 28,
+    borderWidth: 1,
+    borderColor: '#2563eb',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    fontSize: 12,
+    textAlign: 'center',
+    color: '#2563eb',
+    fontWeight: '600',
+  },
+  confirmButton: {
+    backgroundColor: '#16a34a',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  confirmButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   meta: {
     flexDirection: 'row',

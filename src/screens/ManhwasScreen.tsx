@@ -19,15 +19,15 @@ import Toast from '../components/Toast';
 
 type ToastType = 'success' | 'error' | 'info';
 
-export default function AnimesScreen() {
+export default function ManhwasScreen() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [bookmarksWithStories, setBookmarksWithStories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
-  const [editingBookmark, setEditingBookmark] = useState<{ id: string; episode: number; status: string } | null>(null);
+  const [editingBookmark, setEditingBookmark] = useState<{ id: string; chapter: number; status: string } | null>(null);
   const [descriptionModal, setDescriptionModal] = useState<{ visible: boolean; title: string; description: string }>({ visible: false, title: '', description: '' });
-  const [sortBy, setSortBy] = useState<'all' | 'watching' | 'completed' | 'dropped'>('all');
+  const [sortBy, setSortBy] = useState<'all' | 'reading' | 'completed' | 'dropped'>('all');
   const { user } = useAuth();
 
   const showToast = (message: string, type: ToastType = 'error') => {
@@ -35,14 +35,14 @@ export default function AnimesScreen() {
   };
 
   useEffect(() => {
-    loadAnimes();
+    loadManhwas();
   }, [user]);
 
   useEffect(() => {
     handleSearch();
   }, [sortBy]);
 
-  const loadAnimes = async () => {
+  const loadManhwas = async () => {
     if (!user) {
       setLoading(false);
       return;
@@ -50,22 +50,20 @@ export default function AnimesScreen() {
 
     setLoading(true);
     try {
-      // Busca os bookmarks do usuário (já retorna os dados do story)
       const userBookmarks = await LocalApiService.getBookmarksByUser(user.id);
       setBookmarks(userBookmarks);
 
-      // Filtra bookmarks que são animes
-      const animeBookmarks = userBookmarks.filter(bookmark => {
-        const bookmarkData = bookmark as any;
-        const story = bookmarkData.story;
+      // Filtra bookmarks que são manhwas
+      const manhwaBookmarks = userBookmarks.filter((bookmark: any) => {
+        const story = bookmark.story;
         if (!story) return false;
-        const source = story.source || story.Source || '';
-        return source.toLowerCase() === 'anime';
+        const source = (story.source || story.Source || '').toLowerCase();
+        return source === 'manhwa';
       });
       
-      setBookmarksWithStories(animeBookmarks);
+      setBookmarksWithStories(manhwaBookmarks);
     } catch (error) {
-      showToast('Não foi possível carregar os animes');
+      showToast('Não foi possível carregar os manhwas');
       setBookmarksWithStories([]);
     } finally {
       setLoading(false);
@@ -74,28 +72,21 @@ export default function AnimesScreen() {
 
   const handleSearch = () => {
     if (!search.trim() && sortBy === 'all') {
-      loadAnimes();
+      loadManhwas();
       return;
     }
     
-    // Filtra os bookmarks já carregados
-    let filtered = bookmarks.filter(bookmark => {
-      const bookmarkData = bookmark as any;
-      const story = bookmarkData.story;
+    let filtered = bookmarks.filter((bookmark: any) => {
+      const story = bookmark.story;
       if (!story) return false;
       const source = (story.source || story.Source || '').toLowerCase();
-      return source === 'anime';
+      return source === 'manhwa';
     });
 
-    // Filtro por status
     if (sortBy !== 'all') {
-      filtered = filtered.filter(bookmark => {
-        const bookmarkData = bookmark as any;
-        return bookmarkData.status === sortBy;
-      });
+      filtered = filtered.filter((bookmark: any) => bookmark.status === sortBy);
     }
 
-    // Filtro por busca
     if (search.trim()) {
       filtered = filtered.filter(bookmark => {
         const story = (bookmark as any).story;
@@ -119,14 +110,14 @@ export default function AnimesScreen() {
         user_id: user.id,
         story_id: (bookmark as any).story.id,
         status: editingBookmark.status,
-        current_episode: editingBookmark.episode,
-        current_season: (bookmark as any).current_season || 0,
+        current_chapter: editingBookmark.chapter,
+        current_volume: (bookmark as any).current_volume || 0,
       });
 
       // Atualiza localmente
       const updated = bookmarksWithStories.map((b: any) => {
         if (b.id === editingBookmark.id) {
-          return { ...b, current_episode: editingBookmark.episode, status: editingBookmark.status };
+          return { ...b, current_chapter: editingBookmark.chapter, status: editingBookmark.status };
         }
         return b;
       });
@@ -138,7 +129,7 @@ export default function AnimesScreen() {
     }
   };
 
-  const renderAnime = ({ item }: { item: any }) => {
+  const renderManhwa = ({ item }: { item: any }) => {
     const bookmark = item;
     const story = bookmark.story;
     if (!story) return null;
@@ -147,15 +138,15 @@ export default function AnimesScreen() {
     const description = story.description || story.Description || 'Sem descrição';
     const mainPicture = story.main_picture || story.MainPicture;
     const imageUrl = mainPicture?.large || mainPicture?.Large || mainPicture?.medium || mainPicture?.Medium;
-    const totalEpisode = story.total_episode || story.TotalEpisode || 0;
-    const totalSeason = story.total_season || story.TotalSeason || 0;
+    const totalChapter = story.total_chapter || story.TotalChapter || 0;
+    const totalVolume = story.total_volume || story.TotalVolume || 0;
     
     const isEditing = editingBookmark?.id === bookmark.id;
-    const currentEpisode = isEditing ? (editingBookmark?.episode ?? 0) : (bookmark.current_episode || 0);
-    const bookmarkStatus = isEditing ? (editingBookmark?.status ?? 'watching') : (bookmark.status || 'watching');
+    const currentChapter = isEditing ? (editingBookmark?.chapter ?? 0) : (bookmark.current_chapter || 0);
+    const bookmarkStatus = isEditing ? (editingBookmark?.status ?? 'reading') : (bookmark.status || 'reading');
 
     const statusOptions = [
-      { value: 'watching', label: 'Assistindo' },
+      { value: 'reading', label: 'Lendo' },
       { value: 'completed', label: 'Completo' },
       { value: 'dropped', label: 'Dropado' },
     ];
@@ -180,19 +171,19 @@ export default function AnimesScreen() {
           </View>
           
           <View style={styles.progressContainer}>
-            <Text style={styles.progressLabel}>Episódio:</Text>
+            <Text style={styles.progressLabel}>Capítulo:</Text>
             <TextInput
-              style={styles.episodeInput}
-              value={currentEpisode.toString()}
+              style={styles.chapterInput}
+              value={currentChapter.toString()}
               onChangeText={(text) => {
                 const num = parseInt(text) || 0;
-                if (num >= 0 && num <= totalEpisode) {
-                  setEditingBookmark({ id: bookmark.id, episode: num, status: bookmarkStatus });
+                if (num >= 0 && num <= totalChapter) {
+                  setEditingBookmark({ id: bookmark.id, chapter: num, status: bookmarkStatus });
                 }
               }}
               keyboardType="numeric"
             />
-            <Text style={styles.progressText}>de {totalEpisode}</Text>
+            <Text style={styles.progressText}>de {totalChapter}</Text>
           </View>
 
           <View style={styles.statusContainer}>
@@ -208,7 +199,7 @@ export default function AnimesScreen() {
                   onPress={() => {
                     setEditingBookmark({ 
                       id: bookmark.id, 
-                      episode: currentEpisode, 
+                      chapter: currentChapter, 
                       status: option.value 
                     });
                   }}
@@ -247,7 +238,7 @@ export default function AnimesScreen() {
       <View style={styles.searchContainer}>
         <TextInput
           style={styles.searchInput}
-          placeholder="Buscar animes..."
+          placeholder="Buscar manhwas..."
           value={search}
           onChangeText={setSearch}
           onSubmitEditing={handleSearch}
@@ -255,33 +246,17 @@ export default function AnimesScreen() {
       </View>
 
       <View style={styles.sortWrapper}>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.sortContainer}
-        >
-        <TouchableOpacity
-          style={[styles.sortButton, sortBy === 'all' && styles.sortButtonActive]}
-          onPress={() => setSortBy('all')}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortContainer}>
+        <TouchableOpacity style={[styles.sortButton, sortBy === 'all' && styles.sortButtonActive]} onPress={() => setSortBy('all')}>
           <Text style={[styles.sortButtonText, sortBy === 'all' && styles.sortButtonTextActive]}>Todos</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.sortButton, sortBy === 'watching' && styles.sortButtonActive]}
-          onPress={() => setSortBy('watching')}
-        >
-          <Text style={[styles.sortButtonText, sortBy === 'watching' && styles.sortButtonTextActive]}>Assistindo</Text>
+        <TouchableOpacity style={[styles.sortButton, sortBy === 'reading' && styles.sortButtonActive]} onPress={() => setSortBy('reading')}>
+          <Text style={[styles.sortButtonText, sortBy === 'reading' && styles.sortButtonTextActive]}>Lendo</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.sortButton, sortBy === 'completed' && styles.sortButtonActive]}
-          onPress={() => setSortBy('completed')}
-        >
+        <TouchableOpacity style={[styles.sortButton, sortBy === 'completed' && styles.sortButtonActive]} onPress={() => setSortBy('completed')}>
           <Text style={[styles.sortButtonText, sortBy === 'completed' && styles.sortButtonTextActive]}>Completo</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.sortButton, sortBy === 'dropped' && styles.sortButtonActive]}
-          onPress={() => setSortBy('dropped')}
-        >
+        <TouchableOpacity style={[styles.sortButton, sortBy === 'dropped' && styles.sortButtonActive]} onPress={() => setSortBy('dropped')}>
           <Text style={[styles.sortButtonText, sortBy === 'dropped' && styles.sortButtonTextActive]}>Dropado</Text>
         </TouchableOpacity>
         </ScrollView>
@@ -291,15 +266,15 @@ export default function AnimesScreen() {
         <ActivityIndicator size="large" color="#2563eb" style={styles.loader} />
       ) : bookmarksWithStories.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>Nenhum anime encontrado</Text>
+          <Text style={styles.emptyText}>Nenhum manhwa encontrado</Text>
           <Text style={styles.emptyHint}>Tente buscar por nome</Text>
         </View>
       ) : (
         <FlatList
           data={bookmarksWithStories}
-          renderItem={renderAnime}
+          renderItem={renderManhwa}
           keyExtractor={(item, index) => {
-            return item.id || `anime-${index}`;
+            return item.id || `manhwa-${index}`;
           }}
           contentContainerStyle={styles.list}
         />
@@ -307,24 +282,27 @@ export default function AnimesScreen() {
 
       <Modal
         visible={descriptionModal.visible}
-        animationType="fade"
         transparent={true}
+        animationType="fade"
         onRequestClose={() => setDescriptionModal({ visible: false, title: '', description: '' })}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setDescriptionModal({ visible: false, title: '', description: '' })}
+        >
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>{descriptionModal.title}</Text>
             <ScrollView style={styles.modalScroll}>
               <Text style={styles.modalDescription}>{descriptionModal.description}</Text>
             </ScrollView>
-            <TouchableOpacity
+            <TouchableOpacity 
               style={styles.modalCloseButton}
               onPress={() => setDescriptionModal({ visible: false, title: '', description: '' })}
             >
               <Text style={styles.modalCloseButtonText}>Fechar</Text>
             </TouchableOpacity>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
@@ -349,41 +327,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontSize: 16,
   },
-  sortWrapper: {
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  sortContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 8,
-  },
-  sortButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 6,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 75,
-    height: 32,
-  },
-  sortButtonActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
-  },
-  sortButtonText: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '600',
-  },
-  sortButtonTextActive: {
-    color: '#fff',
-  },
+  sortWrapper: { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
+  sortContainer: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
+  sortButton: { paddingVertical: 6, paddingHorizontal: 14, borderWidth: 1, borderColor: '#ddd', borderRadius: 6, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', minWidth: 75, height: 32 },
+  sortButtonActive: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
+  sortButtonText: { fontSize: 12, color: '#666', fontWeight: '600' },
+  sortButtonTextActive: { color: '#fff' },
   loader: {
     flex: 1,
     justifyContent: 'center',
@@ -411,15 +360,16 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 12,
   },
+  title: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+    flex: 1,
+  },
   titleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
-  },
-  title: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   infoButton: {
     width: 20,
@@ -447,13 +397,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     width: '100%',
+    maxWidth: 500,
     maxHeight: '80%',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 12,
-    color: '#1f2937',
+    color: '#333',
   },
   modalScroll: {
     maxHeight: 400,
@@ -464,17 +415,22 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   modalCloseButton: {
-    backgroundColor: '#2563eb',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
     marginTop: 16,
-    alignItems: 'center',
+    backgroundColor: '#2563eb',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 6,
+    alignSelf: 'center',
   },
   modalCloseButtonText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  description: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 8,
   },
   progressContainer: {
     flexDirection: 'row',
@@ -530,6 +486,18 @@ const styles = StyleSheet.create({
   statusButtonTextActive: {
     color: '#fff',
   },
+  chapterInput: {
+    width: 50,
+    height: 28,
+    borderWidth: 1,
+    borderColor: '#2563eb',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    fontSize: 12,
+    textAlign: 'center',
+    color: '#2563eb',
+    fontWeight: '600',
+  },
   confirmButton: {
     backgroundColor: '#16a34a',
     paddingVertical: 8,
@@ -545,30 +513,7 @@ const styles = StyleSheet.create({
   meta: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    alignItems: 'center',
     gap: 8,
-  },
-  episodeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  episodeInput: {
-    width: 50,
-    height: 28,
-    borderWidth: 1,
-    borderColor: '#2563eb',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    fontSize: 12,
-    textAlign: 'center',
-    color: '#2563eb',
-    fontWeight: '600',
-  },
-  episodeTotal: {
-    fontSize: 12,
-    color: '#2563eb',
-    fontWeight: '600',
-    marginLeft: 4,
   },
   episodes: {
     fontSize: 12,

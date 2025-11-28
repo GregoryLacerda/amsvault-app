@@ -3,10 +3,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text } from 'react-native';
 
 // Screens
+import HomeScreen from '../screens/HomeScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import AnimesScreen from '../screens/AnimesScreen';
 import SeriesScreen from '../screens/SeriesScreen';
 import MangasScreen from '../screens/MangasScreen';
+import ManhwasScreen from '../screens/ManhwasScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -35,6 +37,14 @@ export default function AppTabs() {
       }}
     >
       <Tab.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{
+          title: 'Início',
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>🏠</Text>,
+        }}
+      />
+      <Tab.Screen
         name="Animes"
         component={AnimesScreen}
         options={{
@@ -56,6 +66,14 @@ export default function AppTabs() {
         options={{
           title: 'Mangás',
           tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>📚</Text>,
+        }}
+      />
+      <Tab.Screen
+        name="Manhwas"
+        component={ManhwasScreen}
+        options={{
+          title: 'Manhwas',
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>📖</Text>,
         }}
       />
       <Tab.Screen

@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
-import ApiService from '../services/api';
+import LocalApiService from '../services/localApi';
 import { User, LoginRequest, CreateUserRequest } from '../types';
 
 interface AuthContextData {
@@ -19,23 +19,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    loadStoredData();
+    initializeAndLoadData();
   }, []);
 
-  async function loadStoredData() {
+  async function initializeAndLoadData() {
     try {
-      const token = await ApiService.getToken();
-      const storedUser = await ApiService.getUser();
+      // Inicializar banco de dados
+      await LocalApiService.initialize();
       
-      if (token && storedUser) {
-        // Tenta buscar dados atualizados da API usando o email armazenado
-        const currentUser = await ApiService.getCurrentUser(storedUser.email);
-        setUser(currentUser);
-        setUserEmail(currentUser.email);
-        await ApiService.saveUser(currentUser);
+      // Tentar carregar usuário salvo
+      const storedUser = await LocalApiService.getUser();
+      if (storedUser) {
+        setUser(storedUser);
+        setUserEmail(storedUser.email);
       }
     } catch (error) {
-      await ApiService.clearToken();
+      console.error('Error loading stored data:', error);
+      await LocalApiService.clearUser();
     } finally {
       setLoading(false);
     }
@@ -43,12 +43,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   async function signIn(credentials: LoginRequest) {
     try {
-      const response = await ApiService.login(credentials);
-      // Busca dados do usuário usando o email do login
-      const currentUser = await ApiService.getCurrentUser(credentials.email);
-      setUser(currentUser);
-      setUserEmail(currentUser.email);
-      await ApiService.saveUser(currentUser);
+      const response = await LocalApiService.login(credentials.email, credentials.password);
+      setUser(response.user);
+      setUserEmail(response.user.email);
     } catch (error) {
       throw error;
     }
@@ -56,20 +53,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   async function signUp(userData: CreateUserRequest) {
     try {
-      await ApiService.register(userData);
-      // Após registrar, fazer login automaticamente
-      await signIn({
-        email: userData.email,
-        password: userData.password,
-      });
+      const response = await LocalApiService.register(userData.name, userData.email, userData.password);
+      setUser(response.user);
+      setUserEmail(response.user.email);
     } catch (error) {
       throw error;
     }
   }
 
   async function signOut() {
-    await ApiService.logout();
+    await LocalApiService.logout();
     setUser(null);
+    setUserEmail(null);
   }
 
   return (

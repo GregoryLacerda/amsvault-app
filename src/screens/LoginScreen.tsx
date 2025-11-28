@@ -8,9 +8,11 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import Toast from '../components/Toast';
+import DatabaseSeedScreen from './DatabaseSeedScreen';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -21,6 +23,7 @@ export default function LoginScreen() {
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [showSeedModal, setShowSeedModal] = useState(false);
 
   const { signIn, signUp } = useAuth();
 
@@ -135,7 +138,31 @@ export default function LoginScreen() {
               : 'Não tem conta? Registre-se'}
           </Text>
         </Pressable>
+
+        <Pressable
+          style={styles.devButton}
+          onPress={() => setShowSeedModal(true)}
+          disabled={loading}
+        >
+          <Text style={styles.devButtonText}>⚙️ Configurar Banco de Dados</Text>
+        </Pressable>
       </View>
+
+      <Modal
+        visible={showSeedModal}
+        animationType="slide"
+        onRequestClose={() => setShowSeedModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <DatabaseSeedScreen />
+          <Pressable
+            style={styles.closeButton}
+            onPress={() => setShowSeedModal(false)}
+          >
+            <Text style={styles.closeButtonText}>Fechar</Text>
+          </Pressable>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -193,5 +220,37 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 16,
     fontSize: 14,
+  },
+  devButton: {
+    marginTop: 32,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  devButtonText: {
+    color: '#6b7280',
+    fontSize: 12,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  closeButton: {
+    backgroundColor: '#6b7280',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    margin: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
