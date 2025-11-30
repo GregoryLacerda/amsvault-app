@@ -13,7 +13,9 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import CustomPicker from '../components/CustomPicker';
 import { Story, Bookmark } from '../types';
 import LocalApiService from '../services/localApi';
 import { useAuth } from '../contexts/AuthContext';
@@ -29,7 +31,8 @@ export default function AnimesScreen() {
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [editingBookmark, setEditingBookmark] = useState<{ id: string; episode: number; status: string } | null>(null);
   const [descriptionModal, setDescriptionModal] = useState<{ visible: boolean; title: string; description: string }>({ visible: false, title: '', description: '' });
-  const [sortBy, setSortBy] = useState<'all' | 'watching' | 'completed' | 'dropped'>('all');
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{ visible: boolean; bookmarkId: string; name: string }>({ visible: false, bookmarkId: '', name: '' });
+  const [sortBy, setSortBy] = useState<'all' | 'watching' | 'completed' | 'dropped' | 'plan'>('all');
   const { user } = useAuth();
   const flatListRef = useRef<FlatList>(null);
 
@@ -143,18 +146,21 @@ export default function AnimesScreen() {
     }
   };
 
-  const handleDelete = async (bookmarkId: string) => {
-    if (!user) return;
+  const handleDeleteClick = (bookmarkId: string, name: string) => {
+    setDeleteConfirmModal({ visible: true, bookmarkId, name });
+  };
 
+  const handleDeleteConfirm = async () => {
     try {
-      await LocalApiService.deleteBookmark(bookmarkId);
-      const updated = bookmarksWithStories.filter((b: any) => b.id !== bookmarkId);
-      setBookmarksWithStories(updated);
-      showToast('Removido dos favoritos!', 'success');
+      await LocalApiService.deleteBookmark(Number(deleteConfirmModal.bookmarkId));
+      setBookmarksWithStories(bookmarksWithStories.filter(b => b.id !== deleteConfirmModal.bookmarkId));
+      setDeleteConfirmModal({ visible: false, bookmarkId: '', name: '' });
+      showToast('Favorito removido com sucesso!', 'success');
     } catch (error) {
-      showToast('Erro ao remover');
+      showToast('Erro ao remover favorito');
     }
   };
+
 
   const renderAnime = ({ item, index }: { item: any; index: number }) => {
     const bookmark = item;
@@ -176,31 +182,39 @@ export default function AnimesScreen() {
       { value: 'watching', label: 'Assistindo' },
       { value: 'completed', label: 'Completo' },
       { value: 'dropped', label: 'Dropado' },
+      { value: 'plan', label: 'Plano de Assistir' },
     ];
 
     return (
-      <Pressable style={styles.card}>
+      <Pressable 
+        style={styles.card}
+        onPress={() => {
+          if (isEditing) {
+            setEditingBookmark(null);
+          }
+        }}
+      >
         <Image 
           source={{ uri: imageUrl || 'https://via.placeholder.com/100x140' }} 
           style={styles.image} 
         />
         <View style={styles.info}>
           <View style={styles.titleContainer}>
-            <Text style={styles.title} numberOfLines={2}>
+            <Text style={styles.title} numberOfLines={1}>
               {name}
             </Text>
             <View style={styles.actionButtons}>
+              <TouchableOpacity 
+                style={styles.deleteButton}
+                onPress={() => handleDeleteClick(bookmark.id, name)}
+              >
+                <Ionicons name="trash-outline" size={14} color="#fff" />
+              </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.infoButton}
                 onPress={() => setDescriptionModal({ visible: true, title: name, description })}
               >
                 <Text style={styles.infoButtonText}>i</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.deleteButton}
-                onPress={() => handleDelete(bookmark.id)}
-              >
-                <Text style={styles.deleteButtonText}>🗑️</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -233,37 +247,33 @@ export default function AnimesScreen() {
 
           <View style={styles.statusContainer}>
             <Text style={styles.statusLabel}>Status:</Text>
-            <View style={styles.statusButtons}>
-              {statusOptions.map(option => (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.statusButton,
-                    bookmarkStatus === option.value && styles.statusButtonActive
-                  ]}
-                  onPress={() => {
-                    setEditingBookmark({ 
-                      id: bookmark.id, 
-                      episode: currentEpisode, 
-                      status: option.value 
-                    });
-                  }}
-                >
-                  <Text style={[
-                    styles.statusButtonText,
-                    bookmarkStatus === option.value && styles.statusButtonTextActive
-                  ]}>
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View style={styles.pickerContainer}>
+              <CustomPicker
+                selectedValue={bookmarkStatus}
+                onValueChange={(value) => {
+                  setEditingBookmark({ 
+                    id: bookmark.id, 
+                    episode: currentEpisode, 
+                    status: value 
+                  });
+                }}
+                options={statusOptions}
+              />
             </View>
           </View>
 
           {isEditing && (
-            <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmUpdate}>
-              <Text style={styles.confirmButtonText}>Confirmar</Text>
-            </TouchableOpacity>
+            <View style={styles.editButtons}>
+              <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmUpdate}>
+                <Text style={styles.confirmButtonText}>Confirmar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.cancelButton} 
+                onPress={() => setEditingBookmark(null)}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </View>
       </Pressable>
@@ -320,6 +330,12 @@ export default function AnimesScreen() {
         >
           <Text style={[styles.sortButtonText, sortBy === 'dropped' && styles.sortButtonTextActive]}>Dropado</Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.sortButton, sortBy === 'plan' && styles.sortButtonActive]}
+          onPress={() => setSortBy('plan')}
+        >
+          <Text style={[styles.sortButtonText, sortBy === 'plan' && styles.sortButtonTextActive]}>Plano de Assistir</Text>
+        </TouchableOpacity>
         </ScrollView>
       </View>
 
@@ -353,6 +369,39 @@ export default function AnimesScreen() {
           }}
         />
       )}
+
+      <Modal
+        visible={deleteConfirmModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeleteConfirmModal({ visible: false, bookmarkId: '', name: '' })}
+      >
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setDeleteConfirmModal({ visible: false, bookmarkId: '', name: '' })}
+        >
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>Confirmar Exclusão</Text>
+            <Text style={styles.modalDescription}>
+              Deseja realmente remover "{deleteConfirmModal.name}" dos seus favoritos?
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={styles.modalCancelButton}
+                onPress={() => setDeleteConfirmModal({ visible: false, bookmarkId: '', name: '' })}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.modalDeleteButton}
+                onPress={handleDeleteConfirm}
+              >
+                <Text style={styles.modalDeleteButtonText}>Excluir</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal
         visible={descriptionModal.visible}
@@ -394,7 +443,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 12,
     fontSize: 16,
   },
@@ -414,7 +463,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: '#ddd',
-    borderRadius: 6,
+    borderRadius: 12,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
@@ -443,7 +492,7 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: 12,
     overflow: 'hidden',
     elevation: 2,
@@ -496,7 +545,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   deleteButtonText: {
-    fontSize: 12,
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   modalOverlay: {
     flex: 1,
@@ -507,7 +558,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 20,
     width: '100%',
     maxHeight: '80%',
@@ -530,11 +581,42 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563eb',
     paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: 8,
+    borderRadius: 12,
     marginTop: 16,
     alignItems: 'center',
   },
   modalCloseButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  modalCancelButton: {
+    flex: 1,
+    backgroundColor: '#6b7280',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalCancelButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalDeleteButton: {
+    flex: 1,
+    backgroundColor: '#ef4444',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalDeleteButtonText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
@@ -566,39 +648,34 @@ const styles = StyleSheet.create({
     color: '#333',
     marginRight: 8,
   },
-  statusButtons: {
+  pickerContainer: {
     flex: 1,
-    flexDirection: 'row',
-    gap: 6,
   },
-  statusButton: {
+  editButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  cancelButton: {
+    backgroundColor: '#6b7280',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     flex: 1,
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 6,
-    backgroundColor: '#fff',
     alignItems: 'center',
   },
-  statusButtonActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
-  },
-  statusButtonText: {
-    fontSize: 9,
-    color: '#666',
-    fontWeight: '600',
-  },
-  statusButtonTextActive: {
+  cancelButtonText: {
     color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   confirmButton: {
     backgroundColor: '#16a34a',
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
+    borderRadius: 12,
+    flex: 1,
+    alignItems: 'center',
   },
   confirmButtonText: {
     color: '#fff',
@@ -620,7 +697,7 @@ const styles = StyleSheet.create({
     height: 28,
     borderWidth: 1,
     borderColor: '#2563eb',
-    borderRadius: 4,
+    borderRadius: 8,
     paddingHorizontal: 6,
     fontSize: 12,
     textAlign: 'center',

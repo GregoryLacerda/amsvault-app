@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Image, TouchableOpacity, Alert } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import LocalApiService from '../services/localApi';
 import { Bookmark } from '../types';
@@ -13,6 +15,7 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
 
   const showToast = (message: string, type: ToastType = 'error') => {
     setToast({ message, type });
@@ -50,6 +53,27 @@ export default function ProfileScreen() {
     setShowLogoutConfirm(false);
   }
 
+  async function pickImage() {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (permissionResult.granted === false) {
+      Alert.alert('Permissão necessária', 'Você precisa permitir acesso à galeria de fotos!');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setProfileImage(result.assets[0].uri);
+      showToast('Foto de perfil atualizada!', 'success');
+    }
+  }
+
   if (!user) return null;
 
   // Contar bookmarks por status
@@ -72,6 +96,11 @@ export default function ProfileScreen() {
     const bookmark = b as any;
     return bookmark.status === 'dropped';
   }).length;
+  
+  const planCount = bookmarks.filter(b => {
+    const bookmark = b as any;
+    return bookmark.status === 'plan';
+  }).length;
 
   return (
     <ScrollView style={styles.container}>
@@ -84,11 +113,22 @@ export default function ProfileScreen() {
       )}
       
       <View style={styles.header}>
-        <View style={styles.avatarPlaceholder}>
-          <Text style={styles.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
-        </View>
-        <Text style={styles.name}>{user.name}</Text>
-        <Text style={styles.email}>{user.email}</Text>
+        <TouchableOpacity 
+          style={styles.avatarContainer}
+          onPress={pickImage}
+        >
+          {profileImage ? (
+            <Image source={{ uri: profileImage }} style={styles.avatarImage} />
+          ) : (
+            <View style={styles.avatarPlaceholder}>
+              <Text style={styles.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
+            </View>
+          )}
+          <View style={styles.cameraIcon}>
+            <Ionicons name="camera" size={20} color="#fff" />
+          </View>
+        </TouchableOpacity>
+        <Text style={styles.name}>{user.name.charAt(0).toUpperCase() + user.name.slice(1)}</Text>
       </View>
 
       <View style={styles.section}>
@@ -107,11 +147,15 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{completedCount}</Text>
-              <Text style={styles.statLabel}>Completos</Text>
+              <Text style={styles.statLabel}>Completo</Text>
             </View>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{droppedCount}</Text>
-              <Text style={styles.statLabel}>Dropados</Text>
+              <Text style={styles.statLabel}>Dropado</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>{planCount}</Text>
+              <Text style={styles.statLabel}>Planos</Text>
             </View>
           </View>
         )}
@@ -152,6 +196,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
+  avatarContainer: {
+    position: 'relative',
+    marginBottom: 16,
+  },
   avatarPlaceholder: {
     width: 100,
     height: 100,
@@ -159,7 +207,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563eb',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+  },
+  avatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  cameraIcon: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#2563eb',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
   },
   avatarText: {
     fontSize: 40,
@@ -170,10 +235,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 4,
-  },
-  email: {
-    fontSize: 16,
-    color: '#666',
   },
   section: {
     backgroundColor: '#fff',
