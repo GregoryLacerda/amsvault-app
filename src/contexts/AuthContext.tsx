@@ -43,7 +43,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   async function signIn(credentials: LoginRequest) {
     try {
-      const response = await LocalApiService.login(credentials.email, credentials.password);
+      // Tenta fazer login
+      let response;
+      try {
+        response = await LocalApiService.login(credentials.email, credentials.password);
+      } catch (error) {
+        // Se falhar, cria automaticamente o usuário
+        response = await LocalApiService.register(
+          credentials.email, // usa email como nome
+          credentials.email,
+          credentials.password
+        );
+      }
       setUser(response.user);
       setUserEmail(response.user.email);
     } catch (error) {

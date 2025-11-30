@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,9 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
+  Platform,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Story, Bookmark } from '../types';
 import LocalApiService from '../services/localApi';
 import { useAuth } from '../contexts/AuthContext';
@@ -29,14 +31,17 @@ export default function MangasScreen() {
   const [descriptionModal, setDescriptionModal] = useState<{ visible: boolean; title: string; description: string }>({ visible: false, title: '', description: '' });
   const [sortBy, setSortBy] = useState<'all' | 'reading' | 'completed' | 'dropped'>('all');
   const { user } = useAuth();
+  const flatListRef = useRef<FlatList>(null);
 
   const showToast = (message: string, type: ToastType = 'error') => {
     setToast({ message, type });
   };
 
-  useEffect(() => {
-    loadMangas();
-  }, [user]);
+  useFocusEffect(
+    React.useCallback(() => {
+      loadMangas();
+    }, [user])
+  );
 
   useEffect(() => {
     handleSearch();
@@ -129,7 +134,7 @@ export default function MangasScreen() {
     }
   };
 
-  const renderManga = ({ item }: { item: any }) => {
+  const renderManga = ({ item, index }: { item: any; index: number }) => {
     const bookmark = item;
     const story = bookmark.story;
     if (!story) return null;
@@ -175,6 +180,15 @@ export default function MangasScreen() {
             <TextInput
               style={styles.chapterInput}
               value={currentChapter.toString()}
+              onFocus={() => {
+                setTimeout(() => {
+                  flatListRef.current?.scrollToIndex({ 
+                    index, 
+                    animated: true,
+                    viewPosition: 0.3
+                  });
+                }, 100);
+              }}
               onChangeText={(text) => {
                 const num = parseInt(text) || 0;
                 if (num >= 0) {
@@ -271,12 +285,24 @@ export default function MangasScreen() {
         </View>
       ) : (
         <FlatList
+          ref={flatListRef}
           data={bookmarksWithStories}
           renderItem={renderManga}
           keyExtractor={(item, index) => {
             return item.id || `manga-${index}`;
           }}
           contentContainerStyle={styles.list}
+          keyboardShouldPersistTaps="handled"
+          onScrollToIndexFailed={(info) => {
+            const wait = new Promise(resolve => setTimeout(resolve, 500));
+            wait.then(() => {
+              flatListRef.current?.scrollToIndex({ 
+                index: info.index, 
+                animated: true,
+                viewPosition: 0.3 
+              });
+            });
+          }}
         />
       )}
 

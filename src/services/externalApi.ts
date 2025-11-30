@@ -1,4 +1,11 @@
-// Serviço para buscar dados de APIs externas (Jikan, TMDB, etc.)
+// Serviço para buscar dados de APIs externas (MAL oficial, TMDB, etc.)
+
+// Credenciais da API oficial do MyAnimeList
+const MAL_CONFIG = {
+  API_URL: 'https://api.myanimelist.net/v2',
+  CLIENT_ID: 'ad54544a8b8d50ae524bd6e2f552b62d',
+  ACCESS_TOKEN: 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImp0aSI6IjhiZWEyMGRhMGEyNmVmYjhhYzk2Yjg3YTI1YjNkZWRmYTlmYWRhZmJhMTA3ODRlMzBhNzdhODZjNzc1MGE4YzI3ZTY4ODE0MmI1MWYyZDUzIn0.eyJhdWQiOiJhZDU0NTQ0YThiOGQ1MGFlNTI0YmQ2ZTJmNTUyYjYyZCIsImp0aSI6IjhiZWEyMGRhMGEyNmVmYjhhYzk2Yjg3YTI1YjNkZWRmYTlmYWRhZmJhMTA3ODRlMzBhNzdhODZjNzc1MGE4YzI3ZTY4ODE0MmI1MWYyZDUzIiwiaWF0IjoxNzYzMjY1MzM1LCJuYmYiOjE3NjMyNjUzMzUsImV4cCI6MTc2NTg1NzMzNSwic3ViIjoiNzczNzk0OCIsInNjb3BlcyI6W119.Ql_Igu2zSdr63WOICPKsGf7pVpNepMbUs5BaUAf77XouPISRmqiZLr3DcXQfyygYBzPpLBvhrEH9Hbp8oHfAcNAdvVcav5n5hFtQ5ZUf_-Ig1RjznJ__lpbNBor_xBDiEEaPSTvoM4JVpNcW9wevojU3M874hUVKWOyoH3cY3xECKd3cJGzrUtlBFREpjb0pNhRvxJMSyV93tfNuE3K61RQAz2qCf6tL7dZ7z-eemmN1rDk6qrDuE6s1H5KvZT4wxTMZc0UhgHFmMGsKVVslwEEkVypoogCIdr5wNl1pRPpUmbjQ7jQRVF9IXcO2o0AdrjvyvL9dDcVnU2ZitJ6KqQ',
+};
 
 interface ExternalStory {
   id: number;
@@ -17,33 +24,53 @@ interface ExternalStory {
 }
 
 /**
- * Busca animes na Jikan API (MyAnimeList)
+ * Busca animes na API oficial do MyAnimeList
  */
 async function searchAnime(query: string): Promise<ExternalStory[]> {
   try {
     const response = await fetch(
-      `https://api.jikan.moe/v4/anime?q=${encodeURIComponent(query)}&limit=10`
+      `${MAL_CONFIG.API_URL}/anime?q=${encodeURIComponent(query)}&limit=100&fields=id,title,synopsis,num_episodes,status,main_picture,media_type`,
+      {
+        headers: {
+          'X-MAL-CLIENT-ID': MAL_CONFIG.CLIENT_ID,
+          'Authorization': `Bearer ${MAL_CONFIG.ACCESS_TOKEN}`,
+        },
+      }
     );
     
     if (!response.ok) {
-      throw new Error('Erro ao buscar animes');
+      console.error('Erro na API MAL:', response.status, response.statusText);
+      return [];
     }
 
     const data = await response.json();
     
-    return data.data.map((anime: any) => ({
-      id: anime.mal_id,
-      name: anime.title || anime.title_english || 'Sem nome',
-      source: 'anime',
-      description: anime.synopsis || 'Sem descrição disponível',
-      status: anime.status === 'Finished Airing' ? 'completed' : 'ongoing',
-      main_picture: {
-        medium: anime.images?.jpg?.image_url,
-        large: anime.images?.jpg?.large_image_url,
-      },
-      total_episode: anime.episodes || 0,
-      total_season: 1,
-    }));
+    if (!data.data || data.data.length === 0) {
+      return [];
+    }
+    
+    // Remove duplicatas baseado no ID e retorna apenas os 100 primeiros resultados
+    const uniqueResults = new Map();
+    data.data.forEach((item: any) => {
+      const anime = item.node;
+      if (!uniqueResults.has(anime.id)) {
+        uniqueResults.set(anime.id, {
+          id: anime.id,
+          name: anime.title || 'Sem nome',
+          source: 'anime',
+          description: anime.synopsis || 'Sem descrição disponível',
+          status: anime.status === 'finished_airing' ? 'completed' : 'ongoing',
+          main_picture: {
+            medium: anime.main_picture?.medium,
+            large: anime.main_picture?.large,
+          },
+          total_episode: anime.num_episodes || 0,
+          total_season: 1,
+        });
+      }
+    });
+    
+    return Array.from(uniqueResults.values());
   } catch (error) {
     console.error('Erro ao buscar animes:', error);
     return [];
@@ -51,33 +78,54 @@ async function searchAnime(query: string): Promise<ExternalStory[]> {
 }
 
 /**
- * Busca mangás na Jikan API (MyAnimeList)
+ * Busca mangás na API oficial do MyAnimeList
  */
 async function searchManga(query: string): Promise<ExternalStory[]> {
   try {
     const response = await fetch(
-      `https://api.jikan.moe/v4/manga?q=${encodeURIComponent(query)}&limit=10`
+      `${MAL_CONFIG.API_URL}/manga?q=${encodeURIComponent(query)}&limit=100&fields=id,title,synopsis,num_chapters,num_volumes,status,main_picture,media_type`,
+      {
+        headers: {
+          'X-MAL-CLIENT-ID': MAL_CONFIG.CLIENT_ID,
+          'Authorization': `Bearer ${MAL_CONFIG.ACCESS_TOKEN}`,
+        },
+      }
     );
     
     if (!response.ok) {
-      throw new Error('Erro ao buscar mangás');
+      console.error('Erro na API MAL:', response.status, response.statusText);
+      return [];
     }
 
     const data = await response.json();
     
-    return data.data.map((manga: any) => ({
-      id: manga.mal_id,
-      name: manga.title || manga.title_english || 'Sem nome',
-      source: manga.type === 'Manhwa' ? 'manhwa' : 'manga',
-      description: manga.synopsis || 'Sem descrição disponível',
-      status: manga.status === 'Finished' ? 'completed' : 'ongoing',
-      main_picture: {
-        medium: manga.images?.jpg?.image_url,
-        large: manga.images?.jpg?.large_image_url,
-      },
-      total_chapter: manga.chapters !== null && manga.chapters !== undefined ? manga.chapters : 0,
-      total_volume: manga.volumes !== null && manga.volumes !== undefined ? manga.volumes : 0,
-    }));
+    if (!data.data || data.data.length === 0) {
+      return [];
+    }
+    
+    // Remove duplicatas baseado no ID e retorna apenas os 100 primeiros resultados
+    const uniqueResults = new Map();
+    data.data.forEach((item: any) => {
+      const manga = item.node;
+      if (!uniqueResults.has(manga.id)) {
+        const isManhwa = manga.media_type === 'manhwa';
+        uniqueResults.set(manga.id, {
+          id: manga.id,
+          name: manga.title || 'Sem nome',
+          source: isManhwa ? 'manhwa' : 'manga',
+          description: manga.synopsis || 'Sem descrição disponível',
+          status: manga.status === 'finished' ? 'completed' : 'ongoing',
+          main_picture: {
+            medium: manga.main_picture?.medium,
+            large: manga.main_picture?.large,
+          },
+          total_chapter: manga.num_chapters !== null && manga.num_chapters !== undefined ? manga.num_chapters : 0,
+          total_volume: manga.num_volumes !== null && manga.num_volumes !== undefined ? manga.num_volumes : 0,
+        });
+      }
+    });
+    
+    return Array.from(uniqueResults.values());
   } catch (error) {
     console.error('Erro ao buscar mangás:', error);
     return [];
