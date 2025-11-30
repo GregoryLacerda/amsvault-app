@@ -134,6 +134,19 @@ export default function SeriesScreen() {
     }
   };
 
+  const handleDelete = async (bookmarkId: string) => {
+    if (!user) return;
+
+    try {
+      await LocalApiService.deleteBookmark(bookmarkId);
+      const updated = bookmarksWithStories.filter((b: any) => b.id !== bookmarkId);
+      setBookmarksWithStories(updated);
+      showToast('Removido dos favoritos!', 'success');
+    } catch (error) {
+      showToast('Erro ao remover');
+    }
+  };
+
   const renderSeries = ({ item, index }: { item: any; index: number }) => {
     const bookmark = item;
     const story = bookmark.story;
@@ -167,12 +180,20 @@ export default function SeriesScreen() {
             <Text style={styles.title} numberOfLines={2}>
               {name}
             </Text>
-            <TouchableOpacity 
-              style={styles.infoButton}
-              onPress={() => setDescriptionModal({ visible: true, title: name, description })}
-            >
-              <Text style={styles.infoButtonText}>i</Text>
-            </TouchableOpacity>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity 
+                style={styles.infoButton}
+                onPress={() => setDescriptionModal({ visible: true, title: name, description })}
+              >
+                <Text style={styles.infoButtonText}>i</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.deleteButton}
+                onPress={() => handleDelete(bookmark.id)}
+              >
+                <Text style={styles.deleteButtonText}>🗑️</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           
           <View style={styles.progressContainer}>

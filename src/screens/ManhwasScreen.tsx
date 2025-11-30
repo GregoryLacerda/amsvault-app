@@ -134,6 +134,19 @@ export default function ManhwasScreen() {
     }
   };
 
+  const handleDelete = async (bookmarkId: string) => {
+    if (!user) return;
+
+    try {
+      await LocalApiService.deleteBookmark(parseInt(bookmarkId));
+      const updated = bookmarksWithStories.filter((b: any) => b.id !== bookmarkId);
+      setBookmarksWithStories(updated);
+      showToast('Removido dos favoritos!', 'success');
+    } catch (error) {
+      showToast('Erro ao remover');
+    }
+  };
+
   const renderManhwa = ({ item, index }: { item: any; index: number }) => {
     const bookmark = item;
     const story = bookmark.story;
@@ -167,12 +180,20 @@ export default function ManhwasScreen() {
             <Text style={styles.title} numberOfLines={2}>
               {name}
             </Text>
-            <TouchableOpacity 
-              style={styles.infoButton}
-              onPress={() => setDescriptionModal({ visible: true, title: name, description })}
-            >
-              <Text style={styles.infoButtonText}>i</Text>
-            </TouchableOpacity>
+            <View style={styles.actionButtons}>
+              <TouchableOpacity 
+                style={styles.infoButton}
+                onPress={() => setDescriptionModal({ visible: true, title: name, description })}
+              >
+                <Text style={styles.infoButtonText}>i</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.deleteButton}
+                onPress={() => handleDelete(bookmark.id)}
+              >
+                <Text style={styles.deleteButtonText}>🗑️</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           
           <View style={styles.progressContainer}>
@@ -397,19 +418,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 6,
+  },
   infoButton: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: '#2563eb',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
   },
   infoButtonText: {
     color: '#fff',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  deleteButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#ef4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    fontSize: 12,
   },
   modalOverlay: {
     flex: 1,
