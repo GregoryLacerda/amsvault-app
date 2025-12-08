@@ -11,6 +11,7 @@ import {
   ApiError,
 } from '../types';
 import { CONFIG } from '../config';
+import { searchAnimeOnly } from './externalApi';
 
 const TOKEN_KEY = '@amsvault:token';
 const USER_KEY = '@amsvault:user';
@@ -176,6 +177,42 @@ class ApiService {
 
   async getStoryById(id: number): Promise<Story> {
     return this.fetchApi<Story>(`/story/${id}`);
+  }
+
+  /**
+   * Busca animes diretamente da API do MyAnimeList
+   * Melhor precisão e resultados mais completos
+   */
+  async searchAnimes(query: string): Promise<Story[]> {
+    try {
+      const externalAnimes = await searchAnimeOnly(query);
+      
+      // Converte os animes do formato externo para Story
+      return externalAnimes.map(anime => ({
+        ID: anime.id,
+        MALID: anime.id,
+        Name: anime.name,
+        Description: anime.description,
+        Source: anime.source,
+        Image: anime.main_picture?.large || anime.main_picture?.medium || '',
+        Genre: '',
+        TotalSeason: anime.total_season || 0,
+        TotalEpisode: anime.total_episode || 0,
+        TotalVolume: 0,
+        TotalChapter: 0,
+        Status: anime.status,
+        MainPicture: {
+          Medium: anime.main_picture?.medium || '',
+          Large: anime.main_picture?.large || '',
+        },
+        CreatedAt: new Date().toISOString(),
+        UpdatedAt: new Date().toISOString(),
+      }));
+    } catch (error) {
+      console.error('[API] Error searching animes from MAL:', error);
+      // Fallback para API local em caso de erro
+      return this.getStories(query);
+    }
   }
 
   // Bookmarks

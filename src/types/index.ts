@@ -22,6 +22,10 @@ export interface Story {
   TotalChapter: number;
   Status: string; // 'ongoing' | 'completed' | 'dropped'
   MainPicture: MainPicture;
+  Image?: string; // URL da imagem (alternativa para MainPicture)
+  Genre?: string; // Gêneros separados por vírgula
+  CreatedAt?: string;
+  UpdatedAt?: string;
 }
 
 export interface Bookmark {

@@ -28,6 +28,10 @@ interface ExternalStory {
  */
 async function searchAnime(query: string): Promise<ExternalStory[]> {
   try {
+    // Cria um AbortController para cancelar a requisição
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos
+
     const response = await fetch(
       `${MAL_CONFIG.API_URL}/anime?q=${encodeURIComponent(query)}&limit=100&fields=id,title,synopsis,num_episodes,status,main_picture,media_type`,
       {
@@ -35,8 +39,11 @@ async function searchAnime(query: string): Promise<ExternalStory[]> {
           'X-MAL-CLIENT-ID': MAL_CONFIG.CLIENT_ID,
           'Authorization': `Bearer ${MAL_CONFIG.ACCESS_TOKEN}`,
         },
+        signal: controller.signal,
       }
     );
+    
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       console.error('Erro na API MAL:', response.status, response.statusText);
@@ -71,8 +78,7 @@ async function searchAnime(query: string): Promise<ExternalStory[]> {
     });
     
     return Array.from(uniqueResults.values());
-  } catch (error) {
-    console.error('Erro ao buscar animes:', error);
+  } catch (error: any) {
     return [];
   }
 }
@@ -82,6 +88,9 @@ async function searchAnime(query: string): Promise<ExternalStory[]> {
  */
 async function searchManga(query: string): Promise<ExternalStory[]> {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     const response = await fetch(
       `${MAL_CONFIG.API_URL}/manga?q=${encodeURIComponent(query)}&limit=100&fields=id,title,synopsis,num_chapters,num_volumes,status,main_picture,media_type`,
       {
@@ -89,8 +98,11 @@ async function searchManga(query: string): Promise<ExternalStory[]> {
           'X-MAL-CLIENT-ID': MAL_CONFIG.CLIENT_ID,
           'Authorization': `Bearer ${MAL_CONFIG.ACCESS_TOKEN}`,
         },
+        signal: controller.signal,
       }
     );
+    
+    clearTimeout(timeoutId);
     
     if (!response.ok) {
       console.error('Erro na API MAL:', response.status, response.statusText);
@@ -126,8 +138,7 @@ async function searchManga(query: string): Promise<ExternalStory[]> {
     });
     
     return Array.from(uniqueResults.values());
-  } catch (error) {
-    console.error('Erro ao buscar mangás:', error);
+  } catch (error: any) {
     return [];
   }
 }
@@ -138,15 +149,19 @@ async function searchManga(query: string): Promise<ExternalStory[]> {
  */
 async function searchTVShows(query: string): Promise<ExternalStory[]> {
   try {
-    // API Key gratuita da TMDB (você pode criar sua própria em themoviedb.org)
     const API_KEY = '7247c6c7739aca0c3c270dcdd89192ff';
     
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
     const response = await fetch(
-      `https://api.themoviedb.org/3/search/tv?api_key=${API_KEY}&query=${encodeURIComponent(query)}&language=pt-BR`
+      `https://api.themoviedb.org/3/search/tv?api_key=${API_KEY}&query=${encodeURIComponent(query)}&language=pt-BR`,
+      { signal: controller.signal }
     );
     
+    clearTimeout(timeoutId);
+    
     if (!response.ok) {
-      console.log('TMDB API não disponível, usando busca local');
       return [];
     }
 
@@ -169,8 +184,7 @@ async function searchTVShows(query: string): Promise<ExternalStory[]> {
       total_episode: show.number_of_episodes || 0,
       total_season: show.number_of_seasons || 0,
     }));
-  } catch (error) {
-    console.error('Erro ao buscar séries:', error);
+  } catch (error: any) {
     return [];
   }
 }

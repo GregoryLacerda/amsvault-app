@@ -16,6 +16,7 @@ import LocalApiService from '../services/localApi';
 import ExternalApiService from '../services/externalApi';
 import { useAuth } from '../contexts/AuthContext';
 import Toast from '../components/Toast';
+import StatusSelectionModal from '../components/StatusSelectionModal';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -28,6 +29,8 @@ export default function HomeScreen() {
   const [savingBookmark, setSavingBookmark] = useState<number | null>(null);
   const [filterType, setFilterType] = useState<'all' | 'anime' | 'manga' | 'manhwa' | 'series'>('all');
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [statusModalVisible, setStatusModalVisible] = useState(false);
+  const [selectedAnimeForBookmark, setSelectedAnimeForBookmark] = useState<Story | null>(null);
 
   const showToast = (message: string, type: ToastType = 'success') => {
     setToast({ message, type });
@@ -100,7 +103,6 @@ export default function HomeScreen() {
             return !bookmarkedStoryNames.includes(storyName);
           });
         } catch (error) {
-          console.error('Erro ao buscar bookmarks do usuário:', error);
           // Se falhar ao buscar bookmarks, mantém todos os resultados
           filteredResults = uniqueResults;
         }
@@ -108,7 +110,6 @@ export default function HomeScreen() {
       
       setStories(filteredResults);
     } catch (error) {
-      console.error('Erro ao buscar stories:', error);
       // Em caso de erro, tenta buscar apenas no banco local
       try {
         const localResults = await LocalApiService.getStories(searchQuery);
@@ -121,11 +122,16 @@ export default function HomeScreen() {
     }
   };
 
-  const handleSaveBookmark = async (story: Story) => {
-    console.log('[handleSaveBookmark] Função chamada!');
-    console.log('[handleSaveBookmark] Story:', story);
-    console.log('[handleSaveBookmark] User:', user);
+  const handleSelectAnimeFromModal = async (status: string) => {
+    setStatusModalVisible(false);
     
+    if (selectedAnimeForBookmark) {
+      await handleSaveBookmark(selectedAnimeForBookmark, status);
+      setSelectedAnimeForBookmark(null);
+    }
+  };
+
+  const handleSaveBookmark = async (story: Story, selectedStatus?: string) => {
     if (!user) {
       showToast('Você precisa estar logado para salvar favoritos', 'error');
       return;
@@ -135,14 +141,10 @@ export default function HomeScreen() {
     let storyId = storyData.id || storyData.ID || 0;
     const storyName = storyData.name || storyData.Name || 'story';
 
-    console.log('[handleSaveBookmark] StoryId inicial:', storyId);
-    console.log('[handleSaveBookmark] Iniciando salvamento...');
-
     setSavingBookmark(storyId);
     try {
       // Se a story não tem ID local (veio da API externa), salva primeiro
       if (!storyData.ID && storyData.id > 0) {
-        console.log('[handleSaveBookmark] Story vem de API externa, salvando no banco local...');
         const mainPicture = storyData.main_picture || {};
         
         const newStory = await LocalApiService.createStory({
@@ -160,22 +162,19 @@ export default function HomeScreen() {
         });
         
         storyId = newStory.id;
-        console.log('[handleSaveBookmark] Story salva com ID:', storyId);
       }
       
       const bookmarkData = {
         user_id: user.id,
         story_id: storyId,
-        status: storyData.source === 'manga' || storyData.source === 'manhwa' ? 'reading' : 'watching',
+        status: selectedStatus || (storyData.source === 'manga' || storyData.source === 'manhwa' ? 'reading' : 'watching'),
         current_season: 0,
         current_episode: 0,
         current_volume: 0,
         current_chapter: 0,
       };
-      console.log('[handleSaveBookmark] Dados do bookmark:', bookmarkData);
       
       const result = await LocalApiService.createBookmark(bookmarkData);
-      console.log('[handleSaveBookmark] Resultado:', result);
       
       showToast(`✓ ${storyName} adicionado aos favoritos!`, 'success');
       
@@ -185,7 +184,6 @@ export default function HomeScreen() {
         return sName !== storyName.toLowerCase();
       }));
     } catch (error: any) {
-      console.error('[handleSaveBookmark] Erro:', error);
       showToast(error.message || 'Erro ao salvar favorito', 'error');
     } finally {
       setSavingBookmark(null);
@@ -251,11 +249,14 @@ export default function HomeScreen() {
                 savingBookmark === id && styles.favoriteButtonDisabled,
               ]}
               onPress={() => {
-                console.log('[TouchableOpacity] Botão clicado!');
-                console.log('[TouchableOpacity] Item:', item);
-                console.log('[TouchableOpacity] ID:', id);
-                console.log('[TouchableOpacity] MAL_ID:', malId);
-                handleSaveBookmark(item);
+                // Se for anime, abre o modal de seleção de status
+                if (source.toLowerCase() === 'anime') {
+                  setSelectedAnimeForBookmark(item);
+                  setStatusModalVisible(true);
+                } else {
+                  // Para manga/manhwa/series, salva direto
+                  handleSaveBookmark(item);
+                }
               }}
               disabled={isButtonDisabled}
               activeOpacity={0.7}
@@ -387,6 +388,19 @@ export default function HomeScreen() {
             contentContainerStyle={styles.listContent}
           />
         </>
+      )}
+
+      {/* Modal de seleção de status para animes */}
+      {selectedAnimeForBookmark && (
+        <StatusSelectionModal
+          visible={statusModalVisible}
+          anime={selectedAnimeForBookmark}
+          onClose={() => {
+            setStatusModalVisible(false);
+            setSelectedAnimeForBookmark(null);
+          }}
+          onConfirm={handleSelectAnimeFromModal}
+        />
       )}
     </View>
   );
